@@ -1,10 +1,11 @@
 ﻿using System;
 using System.Windows.Forms;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace TestJob2
 {
-    public delegate void HelpToSetRes (TextBox tb, double res);
+    public delegate void HelpToSetRes (TextBox tb, string res);
     public delegate void Inform(Label info,string text);
 
     #region MainForm
@@ -13,7 +14,13 @@ namespace TestJob2
         #region Fields
         private readonly HelpToSetRes _helper;
         private readonly Inform _info;
-        private Thread _calcThead;
+        //private Thread _calcThead;
+        private Task _calcTask;
+        //private Action<object> action;
+        private CancellationTokenSource _ts;
+        private CancellationToken _ct;
+        private bool _formClosing;
+
         #endregion
 
         #region Constr
@@ -23,7 +30,9 @@ namespace TestJob2
 
             _helper = new HelpToSetRes(SetRes);
             _info = new Inform(Info);
+            _formClosing = false;
 
+            //action = (object obj) => Calc();
         }
         #endregion
 
@@ -45,9 +54,9 @@ namespace TestJob2
         /// </summary>
         /// <param name="tb">TextBox for output result</param>
         /// <param name="res">Output value resalt</param>
-        private static void SetRes(TextBox tb, double res)
+        private static void SetRes(TextBox tb, string res)
         {
-            tb.Text = res.ToString();
+            tb.Text = res;
         }
         #endregion
 
@@ -57,20 +66,35 @@ namespace TestJob2
         /// </summary>
         private void Calc()
         {
-            Invoke(_info, infoLb,"Please wait!!!Running Calc!!!");
-            
-            double a, b, res;
+            Thread.Sleep(1000);
+            double a, b, res=0;
+
+            Invoke(_helper, this.res_txtBox, "");
 
             if (!double.TryParse(this.a_txtBox.Text.ToString(), out a) 
                 | !double.TryParse(this.b_txtBox.Text.ToString(), out b))
             {
-                MessageBox.Show("incorrect input");
+                MessageBox.Show("Incorrect input");
             }
 
-            res = a + b;
+            for (int i = 0; i < 10;i++ )
+            {
+                res = a + b;
+                Invoke(_info, infoLb, string.Format("Please wait!!! Running Calc!!! {0}", i));
+                Thread.Sleep(1000);
 
-            Thread.Sleep(10000);
-            Invoke(_helper, this.res_txtBox,res);
+                if(_ct.IsCancellationRequested)
+                {
+                    if (!_formClosing)
+                    {
+                        Invoke(_info, infoLb, "Task canceled!!! And restarted!!!");
+                    }
+                    //Thread.Sleep(1000);
+                    return;
+                }
+            }
+
+            Invoke(_helper, this.res_txtBox,res.ToString());
             Invoke(_info, infoLb, "");
         }
         #endregion
@@ -78,9 +102,16 @@ namespace TestJob2
         #region KillTheThread
         private void KillTheThread()
         {
-            if (_calcThead.IsAlive)
+            //if (_calcThead.IsAlive)
+            //{
+            //    _calcThead.Abort();
+            //}
+
+            if(_calcTask.Status==TaskStatus.Running)
             {
-                _calcThead.Abort();
+                _formClosing = true;
+                _ts.Cancel();
+                Thread.Sleep(2000);
             }
         }
         #endregion
@@ -88,43 +119,52 @@ namespace TestJob2
         #region EventHandler
         private void calc_btn_Click(object sender, EventArgs e)
         {
+            //if (_calcThead!=null)
+            //{
+            //    _calcThead.Abort();
+            //}
 
-            if (_calcThead!=null)
+            //_calcThead = new Thread(Calc);
+            //_calcThead.Priority = ThreadPriority.Lowest;
+            //_calcThead.IsBackground = true;
+            //_calcThead.IsBackground = true;
+            //_calcThead.Start();
+
+            if(_calcTask!=null && _calcTask.Status==TaskStatus.Running)
             {
-                _calcThead.Abort();
+                _ts.Cancel();
+                Thread.Sleep(2000);
             }
 
-            _calcThead = new Thread(Calc);
-            _calcThead.Priority = ThreadPriority.Lowest;
-            _calcThead.IsBackground = true;
-            _calcThead.IsBackground = true;
-            _calcThead.Start();
+            //_calcTask = new Task(action, "calc");
+            //_calcTask.Start();
+            //_calcTask = Task.Factory.StartNew(Calc);
+
+            _ts = new CancellationTokenSource();
+            _ct = _ts.Token;
+
+            _calcTask = Task.Factory.StartNew(Calc, _ct);
         }
 
         private void exit_btn_Click(object sender, EventArgs e)
         {
-            KillTheThread();
+            if (_calcTask.Status == TaskStatus.Running)
+            {
+                KillTheThread();
+            }
 
+            Thread.Sleep(1000);
             this.Close();
         }
 
         private void MainForm_FormClosing(object sender, FormClosingEventArgs e)
         {
-            KillTheThread();
+            if (_calcTask.Status == TaskStatus.Running)
+            {
+                KillTheThread();
+            }
         }
         #endregion
     }
 #endregion
 }
-//public class MyParam
-//{
-//    public double a;
-//    public double b;
-
-//    public MyParam(double tempA, double tempB)
-//    {
-//        this.a = tempA;
-//        this.b = tempB;
-//    }
-
-//}

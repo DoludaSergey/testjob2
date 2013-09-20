@@ -111,7 +111,7 @@
             // infoLb
             // 
             this.infoLb.AutoSize = true;
-            this.infoLb.Location = new System.Drawing.Point(142, 156);
+            this.infoLb.Location = new System.Drawing.Point(131, 157);
             this.infoLb.Name = "infoLb";
             this.infoLb.Size = new System.Drawing.Size(0, 13);
             this.infoLb.TabIndex = 9;
